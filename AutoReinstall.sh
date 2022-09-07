@@ -1,11 +1,13 @@
 #!/bin/sh
 
+# EUID表示有效用户ID，决定用户运行时权限
+# 检查有效用户ID是否为超级用户root,是否为特权进程
 if [[ $EUID -ne 0 ]]; then
     clear
     echo "Error: This script must be run as root!" 1>&2
     exit 1
 fi
-
+# 检查并安装 curl文件传输工具
 if [ -f "/usr/bin/yum" ] && [ -d "/etc/yum.repos.d" ]; then
     yum install -y wget curl
 elif [ -f "/usr/bin/apt-get" ] && [ -f "/usr/bin/dpkg" ]; then
@@ -64,7 +66,7 @@ function UpdateIp() {
   read -r -p "Your Gateway: " GATEWAYIP
   read -r -p "Your Netmask: " NETMASK
 }
-
+# /etc/network/interfaces网络配置文件
 function SetNetwork() {
   isAuto='0'
   if [[ -f '/etc/network/interfaces' ]];then
