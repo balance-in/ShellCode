@@ -41,7 +41,7 @@ function isValidIp() {
   fi
   return $ret
 }
-
+# 检查ip信息是否正确
 function ipCheck() {
   isLegal=0
   for add in $MAINIP $GATEWAYIP $NETMASK; do
@@ -52,10 +52,13 @@ function ipCheck() {
   done
   return $isLegal
 }
-
+# ip route get 1 获取到目标地址1.0.0.0时的单个路由，其中包含默认网关和源地址信息，以及用户id
+# awk -F 'src ' '{print $2}以'src'分割字符串，{print $2}，打印第2个数据段. -F没有时，默认空格分割
+# head -1等于 head -n 1
+# 该函数用于获取ip信息
 function GetIp() {
-  MAINIP=$(ip route get 1 | awk -F 'src ' '{print $2}' | awk '{print $1}')
-  GATEWAYIP=$(ip route | grep default | awk '{print $3}' | head -1)
+  MAINIP=$(ip route get 1 | awk -F 'src ' '{print $2}' | awk '{print $1}') #获得主机ip地址，不是公网ip
+  GATEWAYIP=$(ip route | grep default | awk '{print $3}' | head -1) #获得默认网关地址
   SUBNET=$(ip -o -f inet addr show | awk '/scope global/{sub(/[^.]+\//,"0/",$4);print $4}' | head -1 | awk -F '/' '{print $2}')
   value=$(( 0xffffffff ^ ((1 << (32 - $SUBNET)) - 1) ))
   NETMASK="$(( (value >> 24) & 0xff )).$(( (value >> 16) & 0xff )).$(( (value >> 8) & 0xff )).$(( value & 0xff ))"
@@ -67,13 +70,18 @@ function UpdateIp() {
   read -r -p "Your Netmask: " NETMASK
 }
 # /etc/network/interfaces网络配置文件
+# -f file: file文件是否存在；-z string: 判断string字符串长度为零；-d file: file存在且是一个目录
+# sed -n '/iface.*inet static/p' /etc/network/interfaces 找到interfaces文件中包含
+# iface.*inet static关键字的行并打印
+# find /etc/network/interfaces.d -name '*.cfg' |wc -l 找出interfaces.d目录下.cfg文件并统计个数
+# 函数功能：如果有网络配置文件isAuto='0'，没有就为 '1'
 function SetNetwork() {
   isAuto='0'
   if [[ -f '/etc/network/interfaces' ]];then
     [[ ! -z "$(sed -n '/iface.*inet static/p' /etc/network/interfaces)" ]] && isAuto='1'
     [[ -d /etc/network/interfaces.d ]] && {
       cfgNum="$(find /etc/network/interfaces.d -name '*.cfg' |wc -l)" || cfgNum='0'
-      [[ "$cfgNum" -ne '0' ]] && {
+      [[ "$cfgNum" -ne '0' ]] && { #-ne 不等于
         for netConfig in `ls -1 /etc/network/interfaces.d/*.cfg`
         do
           [[ ! -z "$(cat $netConfig | sed -n '/iface.*inet static/p')" ]] && isAuto='1'
@@ -95,7 +103,7 @@ function SetNetwork() {
 
 function NetMode() {
   CopyRight
-
+  # 默认不保留当前网络配置，使用DHCP自动配置网络信息，就不保留当前网络配置
   if [ "$isAuto" == '0' ]; then
     read -r -p "Use DHCP to configure network automatically? [Y/n]:" input
     case $input in
@@ -104,11 +112,11 @@ function NetMode() {
       *) NETSTR='' ;;
     esac
   fi
-
+  # 保留当前网络配置信息，保留当前网络配置信息：IP地址，默认网关，子网段，网络掩码等
   if [ "$isAuto" == '1' ]; then
     GetIp
     ipCheck
-    if [ $? -ne 0 ]; then
+    if [ $? -ne 0 ]; then # $? 最后运行的命令的结束代码（返回值）
       echo -e "Error occurred when detecting ip. Please input manually.\n"
       UpdateIp
     else
@@ -171,11 +179,12 @@ function Start() {
   CopyRight
 
   isCN='0'
-  geo=$(curl -fsSL -m 10 http://ipinfo.io/json | grep "\"country\": \"CN\"")
+  # 查看ip地区是否为中国
+  geo=$(curl -fsSL -m 10 http://ipinfo.io/json | grep "\"country\": \"CN\"") 
   if [[ "$geo" != "" ]];then
     isCN='1'
   fi
-
+  # 打印网络配置选项
   if [ "$isAuto" == '0' ]; then
     echo "Network Type: DHCP"
   else
